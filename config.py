@@ -1,0 +1,119 @@
+"""
+Configuration module for Nerthus AI.
+Implements Singleton pattern for Settings management.
+"""
+
+from pathlib import Path
+from typing import Any, Dict, Optional
+import yaml
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+
+
+class PromptSettings(BaseModel):
+    """Prompt configuration model."""
+    system_prompts: Dict[str, str] = Field(default_factory=dict)
+    templates: Dict[str, str] = Field(default_factory=dict)
+    settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Settings(BaseSettings):
+    """
+    Application settings using Pydantic.
+    Implements Singleton pattern to ensure single instance.
+    """
+    
+    # Singleton instance
+    _instance: Optional['Settings'] = None
+    
+    # LLM Configuration
+    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
+    model_name: str = Field(default="gpt-3.5-turbo", env="MODEL_NAME")
+    temperature: float = Field(default=0.7, env="TEMPERATURE")
+    
+    # ChromaDB Configuration
+    chroma_persist_directory: str = Field(
+        default="./chroma_db",
+        env="CHROMA_PERSIST_DIRECTORY"
+    )
+    collection_name: str = Field(default="nerthus_docs", env="COLLECTION_NAME")
+    
+    # RAG Configuration
+    chunk_size: int = Field(default=1000, env="CHUNK_SIZE")
+    chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
+    top_k_results: int = Field(default=4, env="TOP_K_RESULTS")
+    
+    # Paths
+    prompts_file: str = Field(default="prompts.yaml", env="PROMPTS_FILE")
+    documents_directory: str = Field(default="./documents", env="DOCUMENTS_DIRECTORY")
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+    
+    def __new__(cls, *args, **kwargs):
+        """Singleton implementation."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    @classmethod
+    def get_instance(cls) -> 'Settings':
+        """Get singleton instance of Settings."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    @classmethod
+    def reset_instance(cls):
+        """Reset singleton instance (useful for testing)."""
+        cls._instance = None
+
+
+class PromptsLoader:
+    """Loader for YAML-based prompt configurations."""
+    
+    def __init__(self, prompts_file: str = "prompts.yaml"):
+        self.prompts_file = Path(prompts_file)
+        self._prompts: Optional[PromptSettings] = None
+    
+    def load_prompts(self) -> PromptSettings:
+        """Load prompts from YAML file."""
+        if not self.prompts_file.exists():
+            raise FileNotFoundError(f"Prompts file not found: {self.prompts_file}")
+        
+        with open(self.prompts_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        self._prompts = PromptSettings(**data)
+        return self._prompts
+    
+    def get_system_prompt(self, prompt_type: str = "default") -> str:
+        """Get system prompt by type."""
+        if self._prompts is None:
+            self.load_prompts()
+        return self._prompts.system_prompts.get(prompt_type, "")
+    
+    def get_template(self, template_name: str) -> str:
+        """Get template by name."""
+        if self._prompts is None:
+            self.load_prompts()
+        return self._prompts.templates.get(template_name, "")
+    
+    def get_setting(self, setting_name: str, default: Any = None) -> Any:
+        """Get prompt setting by name."""
+        if self._prompts is None:
+            self.load_prompts()
+        return self._prompts.settings.get(setting_name, default)
+
+
+def get_settings() -> Settings:
+    """Convenience function to get Settings singleton instance."""
+    return Settings.get_instance()
+
+
+def load_prompts(prompts_file: str = "prompts.yaml") -> PromptSettings:
+    """Convenience function to load prompts from YAML."""
+    loader = PromptsLoader(prompts_file)
+    return loader.load_prompts()
