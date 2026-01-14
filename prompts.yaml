@@ -1,0 +1,37 @@
+# Prompts configuration for Nerthus RAG system
+
+system_prompts:
+  default: |
+    You are Nerthus, an intelligent AI assistant with access to a knowledge base.
+    Use the provided context to answer questions accurately and helpfully.
+    If you don't know the answer based on the context, say so clearly.
+    
+  contextual: |
+    You are Nerthus, an AI assistant analyzing documents from a knowledge base.
+    
+    Context from knowledge base:
+    {context}
+    
+    Based on the above context, please answer the following question.
+    If the context doesn't contain relevant information, acknowledge this limitation.
+
+templates:
+  query_prompt: |
+    Question: {question}
+    
+    Please provide a detailed and accurate answer based on the available context.
+  
+  retrieval_prompt: |
+    Based on the user's question, retrieve the most relevant information from the knowledge base.
+    
+    User Question: {question}
+  
+  summarization_prompt: |
+    Summarize the following text concisely while preserving key information:
+    
+    {text}
+
+settings:
+  temperature: 0.7
+  max_tokens: 1000
+  top_p: 0.9
