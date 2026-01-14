@@ -13,6 +13,7 @@ from config import get_settings, PromptsLoader
 
 
 _JSON_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
+METADATA_PREVIEW_CHARS = 3000
 
 
 def parse_json_response(response_text: str) -> Dict[str, Any]:
@@ -53,7 +54,7 @@ class MetadataExtractor:
             return {}
 
         prompt_text = self.prompt.format(
-            text=text_preview[:3000],
+            text=text_preview[:METADATA_PREVIEW_CHARS],
             filename=filename,
         )
 

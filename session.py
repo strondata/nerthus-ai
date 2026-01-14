@@ -16,6 +16,9 @@ from ingest import DocumentIngester
 from rag_chain import RAGChain
 
 
+REPORT_CONTEXT_DOC_LIMIT = 5
+
+
 class NerthusSession:
     """
     Facade class for Nerthus AI session management.
@@ -318,7 +321,7 @@ class NerthusSession:
             documents = []
             doc_count = 0
 
-        context_text = "\n\n".join(documents[:5])
+        context_text = "\n\n".join(documents[:REPORT_CONTEXT_DOC_LIMIT])
         report_data = {
             "llm_generated_process_summary": "",
             "formulations": [],

@@ -257,7 +257,6 @@ class DocumentIngester:
         self.store.add_documents(
             chunks=chunks,
             collection_name=collection_name,
-            metadatas=[full_metadata] * len(chunks),
         )
         
         return len(chunks)
