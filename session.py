@@ -5,8 +5,13 @@ Implements Facade pattern for simplified session management.
 
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from datetime import date
 
-from config import get_settings, Settings
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from langchain_openai import ChatOpenAI
+
+from config import get_settings, Settings, PromptsLoader
+from extractors import parse_json_response
 from ingest import DocumentIngester
 from rag_chain import RAGChain
 
@@ -34,17 +39,22 @@ class NerthusSession:
         self.settings = settings or get_settings()
         self.model_name = model_name or self.settings.model_name
         self.temperature = temperature or self.settings.temperature
+        default_collection = self.settings.collection_name
+        if default_collection not in self.settings.available_collections:
+            default_collection = "general"
+        self.active_collection = default_collection
         
         # Initialize components
         self._ingester: Optional[DocumentIngester] = None
         self._rag_chain: Optional[RAGChain] = None
+        self._prompts_loader: Optional[PromptsLoader] = None
         self._initialized = False
     
     @property
     def ingester(self) -> DocumentIngester:
         """Lazy initialization of document ingester."""
         if self._ingester is None:
-            self._ingester = DocumentIngester()
+            self._ingester = DocumentIngester(collection_name=self.active_collection)
         return self._ingester
     
     @property
@@ -56,6 +66,24 @@ class NerthusSession:
                 temperature=self.temperature,
             )
         return self._rag_chain
+
+    @property
+    def prompts_loader(self) -> PromptsLoader:
+        """Lazy initialization of prompts loader."""
+        if self._prompts_loader is None:
+            self._prompts_loader = PromptsLoader(self.settings.prompts_file)
+            self._prompts_loader.load_prompts()
+        return self._prompts_loader
+
+    def set_context(self, collection_name: str) -> None:
+        """
+        Set active collection context for the session.
+        """
+        if collection_name not in self.settings.available_collections:
+            raise ValueError(f"Coleção inválida: {collection_name}")
+        self.active_collection = collection_name
+        if self._ingester is not None:
+            self._ingester.collection_name = collection_name
     
     def initialize(self) -> "NerthusSession":
         """
@@ -70,12 +98,19 @@ class NerthusSession:
         self._initialized = True
         return self
     
-    def ingest_file(self, file_path: str) -> Dict[str, Any]:
+    def ingest_file(
+        self,
+        file_path: str,
+        collection_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         Ingest a single document file.
         
         Args:
             file_path: Path to the document file
+            collection_name: Target collection name
+            tags: Manual tags to attach to metadata
             
         Returns:
             Dictionary with ingestion results
@@ -84,7 +119,14 @@ class NerthusSession:
         if not file_path_obj.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
         
-        chunks = self.ingester.ingest_file(file_path)
+        if collection_name:
+            self.set_context(collection_name)
+
+        chunks = self.ingester.ingest_file(
+            file_path,
+            collection_name=self.active_collection,
+            tags=tags,
+        )
         
         return {
             "success": True,
@@ -93,12 +135,19 @@ class NerthusSession:
             "message": f"Successfully ingested {chunks} chunks from {file_path_obj.name}"
         }
     
-    def ingest_directory(self, directory_path: str) -> Dict[str, Any]:
+    def ingest_directory(
+        self,
+        directory_path: str,
+        collection_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         Ingest all supported documents from a directory.
         
         Args:
             directory_path: Path to directory containing documents
+            collection_name: Target collection name
+            tags: Manual tags to attach to metadata
             
         Returns:
             Dictionary with ingestion results
@@ -109,7 +158,14 @@ class NerthusSession:
         if not directory.is_dir():
             raise ValueError(f"Not a directory: {directory_path}")
         
-        results = self.ingester.ingest_directory(directory_path)
+        if collection_name:
+            self.set_context(collection_name)
+
+        results = self.ingester.ingest_directory(
+            directory_path,
+            collection_name=self.active_collection,
+            tags=tags,
+        )
         
         return {
             "success": True,
@@ -121,7 +177,7 @@ class NerthusSession:
             "message": f"Ingested {results['total_files']} files ({results['total_chunks']} chunks)"
         }
     
-    def query(self, question: str) -> Dict[str, Any]:
+    def query(self, question: str, collection_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Execute a RAG query.
         
@@ -134,7 +190,13 @@ class NerthusSession:
         if not question.strip():
             raise ValueError("Question cannot be empty")
         
-        result = self.rag_chain.query(question)
+        if collection_name:
+            self.set_context(collection_name)
+
+        result = self.rag_chain.query(
+            question,
+            collection_filter=self.active_collection,
+        )
         
         return {
             "success": True,
@@ -144,7 +206,7 @@ class NerthusSession:
             "num_sources": len(result["context"])
         }
     
-    def stream_query(self, question: str):
+    def stream_query(self, question: str, collection_name: Optional[str] = None):
         """
         Execute a RAG query with streaming.
         
@@ -157,7 +219,13 @@ class NerthusSession:
         if not question.strip():
             raise ValueError("Question cannot be empty")
         
-        yield from self.rag_chain.stream_query(question)
+        if collection_name:
+            self.set_context(collection_name)
+
+        yield from self.rag_chain.stream_query(
+            question,
+            collection_filter=self.active_collection,
+        )
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -166,7 +234,7 @@ class NerthusSession:
         Returns:
             Dictionary with session stats
         """
-        vectorstore = self.ingester.get_vectorstore()
+        vectorstore = self.ingester.get_vectorstore(collection_name=self.active_collection)
         
         # Get collection info
         try:
@@ -179,7 +247,7 @@ class NerthusSession:
             "initialized": self._initialized,
             "model_name": self.model_name,
             "temperature": self.temperature,
-            "collection_name": self.settings.collection_name,
+            "collection_name": self.active_collection,
             "document_count": count,
             "persist_directory": self.settings.chroma_persist_directory,
         }
@@ -192,7 +260,7 @@ class NerthusSession:
             Dictionary with operation result
         """
         try:
-            vectorstore = self.ingester.get_vectorstore()
+            vectorstore = self.ingester.get_vectorstore(collection_name=self.active_collection)
             collection = vectorstore._collection
             
             # Delete all documents
@@ -221,3 +289,93 @@ class NerthusSession:
         """
         from ingest import DocumentLoaderFactory
         return DocumentLoaderFactory.get_supported_extensions()
+
+    def generate_report(
+        self,
+        report_type: str,
+        filter_collection: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate a technical report from the current collection.
+        """
+        collection_name = filter_collection or self.active_collection
+        self.set_context(collection_name)
+
+        templates_dir = Path(__file__).parent / "templates"
+        template_name = f"{report_type}.md"
+        if not (templates_dir / template_name).exists():
+            raise FileNotFoundError(f"Template not found: {template_name}")
+
+        vectorstore = self.ingester.get_vectorstore(collection_name=collection_name)
+        doc_count = 0
+        documents = []
+        try:
+            collection = vectorstore._collection
+            payload = collection.get(include=["documents"])
+            documents = payload.get("documents", []) or []
+            doc_count = len(documents)
+        except Exception:
+            documents = []
+            doc_count = 0
+
+        context_text = "\n\n".join(documents[:5])
+        report_data = {
+            "llm_generated_process_summary": "",
+            "formulations": [],
+            "anomalies_list": "",
+            "conclusion_text": "",
+        }
+
+        prompt = self.prompts_loader.get_template(f"{report_type}_prompt")
+        if prompt and context_text:
+            llm = ChatOpenAI(
+                model=self.model_name,
+                temperature=self.temperature,
+            )
+            response = llm.invoke(
+                prompt.format(
+                    context=context_text,
+                    collection_name=collection_name,
+                    doc_count=doc_count,
+                )
+            )
+            content = response.content if hasattr(response, "content") else str(response)
+            parsed = parse_json_response(content)
+            if isinstance(parsed, dict):
+                report_data["llm_generated_process_summary"] = parsed.get(
+                    "llm_generated_process_summary",
+                    report_data["llm_generated_process_summary"],
+                )
+                formulations = parsed.get("formulations")
+                if isinstance(formulations, list):
+                    report_data["formulations"] = formulations
+                anomalies_list = parsed.get("anomalies_list")
+                if isinstance(anomalies_list, list):
+                    report_data["anomalies_list"] = ", ".join(
+                        str(item) for item in anomalies_list
+                    )
+                elif isinstance(anomalies_list, str):
+                    report_data["anomalies_list"] = anomalies_list
+                report_data["conclusion_text"] = parsed.get(
+                    "conclusion_text",
+                    report_data["conclusion_text"],
+                )
+
+        env = Environment(
+            loader=FileSystemLoader(str(templates_dir)),
+            autoescape=select_autoescape(),
+        )
+        template = env.get_template(template_name)
+        content = template.render(
+            collection_name=collection_name,
+            report_date=date.today().isoformat(),
+            doc_count=doc_count,
+            **report_data,
+        )
+
+        return {
+            "success": True,
+            "collection_name": collection_name,
+            "report_type": report_type,
+            "content": content,
+        }

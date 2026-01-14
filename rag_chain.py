@@ -3,7 +3,7 @@ RAG Chain implementation using LangGraph.
 Implements State Graph for the retrieval-augmented generation pipeline.
 """
 
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict, Annotated, Sequence, Optional
 from operator import add
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -22,6 +22,7 @@ class RAGState(TypedDict):
     context: Sequence[Document]
     messages: Annotated[Sequence[BaseMessage], add]
     answer: str
+    collection_filter: Optional[str]
 
 
 class RAGChain:
@@ -92,13 +93,17 @@ class RAGChain:
         """
         question = state["question"]
         
+        collection_filter = state.get("collection_filter")
+        collection_name = collection_filter or self.ingester.collection_name
+
         # Get vector store
-        vectorstore = self.ingester.get_vectorstore()
+        vectorstore = self.ingester.get_vectorstore(collection_name=collection_name)
         
         # Retrieve relevant documents
-        retriever = vectorstore.as_retriever(
-            search_kwargs={"k": self.top_k}
-        )
+        search_kwargs = {"k": self.top_k}
+        if collection_filter:
+            search_kwargs["filter"] = {"collection": collection_filter}
+        retriever = vectorstore.as_retriever(search_kwargs=search_kwargs)
         
         documents = retriever.get_relevant_documents(question)
         
@@ -155,7 +160,7 @@ class RAGChain:
             "messages": new_messages,
         }
     
-    def query(self, question: str) -> dict:
+    def query(self, question: str, collection_filter: Optional[str] = None) -> dict:
         """
         Execute RAG query.
         
@@ -170,6 +175,7 @@ class RAGChain:
             "context": [],
             "messages": [],
             "answer": "",
+            "collection_filter": collection_filter,
         }
         
         # Run the graph
@@ -187,7 +193,7 @@ class RAGChain:
             ],
         }
     
-    def stream_query(self, question: str):
+    def stream_query(self, question: str, collection_filter: Optional[str] = None):
         """
         Execute RAG query with streaming.
         
@@ -202,6 +208,7 @@ class RAGChain:
             "context": [],
             "messages": [],
             "answer": "",
+            "collection_filter": collection_filter,
         }
         
         # Stream the graph execution

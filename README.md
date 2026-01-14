@@ -59,6 +59,9 @@ python nerthus_cli.py ingest path/to/documents/
 
 # Use a specific collection
 python nerthus_cli.py ingest path/to/docs/ --collection my_collection
+
+# Add manual tags (repeatable)
+python nerthus_cli.py ingest path/to/docs/ --collection legacy_lab_2023 --tag extrusao --tag 2023
 ```
 
 #### Query the System
@@ -80,6 +83,18 @@ python nerthus_cli.py interactive
 
 # Interactive with specific collection
 python nerthus_cli.py interactive --collection my_docs
+```
+
+#### Set Collection Context
+```bash
+# Set active collection context
+python nerthus_cli.py context legacy_lab_2023
+```
+
+#### Generate Report
+```bash
+# Generate extrusion log report
+python nerthus_cli.py report --type extrusion_log --collection legacy_lab_2023
 ```
 
 #### View Statistics
@@ -191,7 +206,7 @@ OPENAI_API_KEY=your-api-key-here
 MODEL_NAME=gpt-3.5-turbo
 TEMPERATURE=0.7
 CHROMA_PERSIST_DIRECTORY=./chroma_db
-COLLECTION_NAME=nerthus_docs
+COLLECTION_NAME=general
 CHUNK_SIZE=1000
 CHUNK_OVERLAP=200
 TOP_K_RESULTS=4

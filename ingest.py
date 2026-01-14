@@ -5,7 +5,7 @@ Implements Factory pattern for document loaders.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -19,6 +19,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.schema import Document
 
 from config import get_settings
+from extractors import MetadataExtractor
 
 
 class DocumentType(Enum):
@@ -124,6 +125,39 @@ class DocumentLoaderFactory:
         return [doc_type.value for doc_type in DocumentType]
 
 
+class ChromaDocumentStore:
+    """Repository pattern wrapper for Chroma collections."""
+
+    def __init__(
+        self,
+        persist_directory: Optional[str] = None,
+        embedding_function: Optional[OpenAIEmbeddings] = None,
+    ):
+        settings = get_settings()
+        self.persist_directory = persist_directory or settings.chroma_persist_directory
+        self.embedding_function = embedding_function or OpenAIEmbeddings()
+
+    def get_collection(self, collection_name: str) -> Chroma:
+        return Chroma(
+            collection_name=collection_name,
+            embedding_function=self.embedding_function,
+            persist_directory=self.persist_directory,
+        )
+
+    def add_documents(
+        self,
+        chunks: List[Document],
+        collection_name: str,
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        if metadatas:
+            for chunk, metadata in zip(chunks, metadatas):
+                chunk.metadata = {**chunk.metadata, **metadata}
+
+        vectorstore = self.get_collection(collection_name)
+        vectorstore.add_documents(chunks)
+
+
 class DocumentIngester:
     """Main class for document ingestion into ChromaDB."""
     
@@ -143,12 +177,12 @@ class DocumentIngester:
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
         """
-        settings = get_settings()
+        self.settings = get_settings()
         
-        self.persist_directory = persist_directory or settings.chroma_persist_directory
-        self.collection_name = collection_name or settings.collection_name
-        self.chunk_size = chunk_size or settings.chunk_size
-        self.chunk_overlap = chunk_overlap or settings.chunk_overlap
+        self.persist_directory = persist_directory or self.settings.chroma_persist_directory
+        self.collection_name = collection_name or self.settings.collection_name
+        self.chunk_size = chunk_size or self.settings.chunk_size
+        self.chunk_overlap = chunk_overlap or self.settings.chunk_overlap
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
@@ -157,43 +191,90 @@ class DocumentIngester:
         )
         
         self.embeddings = OpenAIEmbeddings()
+        self.store = ChromaDocumentStore(
+            persist_directory=self.persist_directory,
+            embedding_function=self.embeddings,
+        )
+        self.metadata_extractor = MetadataExtractor()
+
+    def _resolve_collection(self, collection_name: Optional[str]) -> str:
+        resolved = collection_name or self.collection_name
+        if resolved not in self.settings.available_collections:
+            raise ValueError(f"Invalid collection name: {resolved}")
+        return resolved
     
-    def ingest_file(self, file_path: str) -> int:
+    def ingest_file(
+        self,
+        file_path: str,
+        collection_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> int:
         """
         Ingest a single document file.
         
         Args:
             file_path: Path to the document file
+            collection_name: Target collection name
+            tags: Manual tags to attach to metadata
             
         Returns:
             Number of chunks ingested
         """
+        collection_name = self._resolve_collection(collection_name)
+        manual_tags = list(tags) if tags else []
+
         # Create loader using factory
         loader = DocumentLoaderFactory.create_loader(file_path)
         
         # Load document
-        documents = loader.load()
+        documents = loader.load(file_path)
+
+        extracted_meta: Dict[str, Any] = {}
+        if documents:
+            try:
+                extracted_meta = self.metadata_extractor.extract(
+                    documents[0].page_content,
+                    Path(file_path).name,
+                )
+            except Exception:
+                extracted_meta = {}
+        if not isinstance(extracted_meta, dict):
+            extracted_meta = {}
+
+        full_metadata = {
+            **extracted_meta,
+            "manual_tags": manual_tags,
+            "collection": collection_name,
+            "source": file_path,
+        }
         
         # Split into chunks
         chunks = self.text_splitter.split_documents(documents)
+        for chunk in chunks:
+            chunk.metadata = {**chunk.metadata, **full_metadata}
         
         # Add to vector store
-        vectorstore = Chroma(
-            collection_name=self.collection_name,
-            embedding_function=self.embeddings,
-            persist_directory=self.persist_directory,
+        self.store.add_documents(
+            chunks=chunks,
+            collection_name=collection_name,
+            metadatas=[full_metadata] * len(chunks),
         )
-        
-        vectorstore.add_documents(chunks)
         
         return len(chunks)
     
-    def ingest_directory(self, directory_path: str) -> dict:
+    def ingest_directory(
+        self,
+        directory_path: str,
+        collection_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> dict:
         """
         Ingest all supported documents from a directory.
         
         Args:
             directory_path: Path to directory containing documents
+            collection_name: Target collection name
+            tags: Manual tags to attach to metadata
             
         Returns:
             Dictionary with ingestion results
@@ -213,7 +294,11 @@ class DocumentIngester:
         for ext in supported_extensions:
             for file_path in directory.rglob(f"*.{ext}"):
                 try:
-                    chunks = self.ingest_file(str(file_path))
+                    chunks = self.ingest_file(
+                        str(file_path),
+                        collection_name=collection_name,
+                        tags=tags,
+                    )
                     results["total_files"] += 1
                     results["total_chunks"] += chunks
                     results["files_processed"].append({
@@ -228,10 +313,7 @@ class DocumentIngester:
         
         return results
     
-    def get_vectorstore(self) -> Chroma:
+    def get_vectorstore(self, collection_name: Optional[str] = None) -> Chroma:
         """Get the ChromaDB vector store."""
-        return Chroma(
-            collection_name=self.collection_name,
-            embedding_function=self.embeddings,
-            persist_directory=self.persist_directory,
-        )
+        resolved = self._resolve_collection(collection_name)
+        return self.store.get_collection(resolved)
