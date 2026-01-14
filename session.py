@@ -314,9 +314,12 @@ class NerthusSession:
         documents = []
         try:
             collection = vectorstore._collection
-            payload = collection.get(include=["documents"])
+            doc_count = collection.count()
+            payload = collection.get(
+                include=["documents"],
+                limit=REPORT_CONTEXT_DOC_LIMIT,
+            )
             documents = payload.get("documents", []) or []
-            doc_count = len(documents)
         except Exception:
             documents = []
             doc_count = 0
