@@ -281,6 +281,7 @@ def config():
         click.echo(f"  • Chunk Size: {settings.chunk_size}")
         click.echo(f"  • Chunk Overlap: {settings.chunk_overlap}")
         click.echo(f"  • Top K Results: {settings.top_k_results}")
+        click.echo(f"  • Report Context Documents: {settings.report_context_documents}")
         
         click.echo(f"\n📁 Paths:")
         click.echo(f"  • Prompts File: {settings.prompts_file}")

@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=1000, env="CHUNK_SIZE")
     chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
     top_k_results: int = Field(default=4, env="TOP_K_RESULTS")
+    report_context_documents: int = Field(
+        default=5,
+        env="REPORT_CONTEXT_DOCUMENTS"
+    )
     
     # Paths
     prompts_file: str = Field(default="prompts.yaml", env="PROMPTS_FILE")

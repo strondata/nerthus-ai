@@ -16,9 +16,6 @@ from ingest import DocumentIngester
 from rag_chain import RAGChain
 
 
-REPORT_CONTEXT_DOC_LIMIT = 5
-
-
 class NerthusSession:
     """
     Facade class for Nerthus AI session management.
@@ -312,19 +309,20 @@ class NerthusSession:
         vectorstore = self.ingester.get_vectorstore(collection_name=collection_name)
         doc_count = 0
         documents = []
+        context_limit = max(1, self.settings.report_context_documents)
         try:
             collection = vectorstore._collection
             doc_count = collection.count()
             payload = collection.get(
                 include=["documents"],
-                limit=REPORT_CONTEXT_DOC_LIMIT,
+                limit=context_limit,
             )
             documents = payload.get("documents", []) or []
         except Exception:
             documents = []
             doc_count = 0
 
-        context_text = "\n\n".join(documents[:REPORT_CONTEXT_DOC_LIMIT])
+        context_text = "\n\n".join(documents[:context_limit])
         report_data = {
             "llm_generated_process_summary": "",
             "formulations": [],
