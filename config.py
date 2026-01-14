@@ -10,6 +10,9 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
+DEFAULT_COLLECTION_NAME = "general"
+
+
 class PromptSettings(BaseModel):
     """Prompt configuration model."""
     system_prompts: Dict[str, str] = Field(default_factory=dict)
@@ -35,8 +38,8 @@ def _default_available_collections() -> Dict[str, CollectionConfig]:
             name="production_scale_2025",
             description="Parâmetros atuais, Foods Services, Máquinas de Escala.",
         ),
-        "general": CollectionConfig(
-            name="general",
+        DEFAULT_COLLECTION_NAME: CollectionConfig(
+            name=DEFAULT_COLLECTION_NAME,
             description="Documentos gerais.",
         ),
     }
@@ -61,7 +64,7 @@ class Settings(BaseSettings):
         default="./chroma_db",
         env="CHROMA_PERSIST_DIRECTORY"
     )
-    collection_name: str = Field(default="general", env="COLLECTION_NAME")
+    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME, env="COLLECTION_NAME")
     available_collections: Dict[str, CollectionConfig] = Field(
         default_factory=_default_available_collections
     )

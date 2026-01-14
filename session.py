@@ -10,7 +10,7 @@ from datetime import date
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from langchain_openai import ChatOpenAI
 
-from config import get_settings, Settings, PromptsLoader
+from config import get_settings, Settings, PromptsLoader, DEFAULT_COLLECTION_NAME
 from extractors import parse_json_response
 from ingest import DocumentIngester
 from rag_chain import RAGChain
@@ -44,7 +44,7 @@ class NerthusSession:
         self.temperature = temperature or self.settings.temperature
         default_collection = self.settings.collection_name
         if default_collection not in self.settings.available_collections:
-            default_collection = "general"
+            default_collection = DEFAULT_COLLECTION_NAME
         self.active_collection = default_collection
         
         # Initialize components

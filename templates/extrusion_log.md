@@ -6,7 +6,6 @@
 *(Compilado de {{ doc_count }} documentos encontrados)*
 
 {{ llm_generated_process_summary }}
-*(Aqui o LLM deve listar Perfis de Temperatura e Rotações (Hz/RPM))*
 
 ## 2. Análise de Materiais e Formulações
 | Material Base | Aditivos | Observações de Performance |
