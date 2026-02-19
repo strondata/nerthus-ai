@@ -12,8 +12,8 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import Document
 from langgraph.graph import StateGraph, END
 
-from config import get_settings, PromptsLoader
-from ingest import DocumentIngester
+from nerthus_ai.core.config import get_settings, PromptsLoader
+from nerthus_ai.rag.ingest import DocumentIngester
 
 
 class RAGState(TypedDict):
@@ -166,6 +166,7 @@ class RAGChain:
         
         Args:
             question: User question
+            collection_filter: Optional collection name to filter results
             
         Returns:
             Dictionary with answer and context
@@ -199,6 +200,7 @@ class RAGChain:
         
         Args:
             question: User question
+            collection_filter: Optional collection name to filter results
             
         Yields:
             State updates during execution

@@ -12,6 +12,9 @@ from pydantic_settings import BaseSettings
 
 DEFAULT_COLLECTION_NAME = "general"
 
+_RESOURCES_DIR = Path(__file__).parent.parent / "resources"
+_DEFAULT_PROMPTS_FILE = str(_RESOURCES_DIR / "prompts.yaml")
+
 
 class PromptSettings(BaseModel):
     """Prompt configuration model."""
@@ -79,7 +82,7 @@ class Settings(BaseSettings):
     )
     
     # Paths
-    prompts_file: str = Field(default="prompts.yaml", env="PROMPTS_FILE")
+    prompts_file: str = Field(default=_DEFAULT_PROMPTS_FILE, env="PROMPTS_FILE")
     documents_directory: str = Field(default="./documents", env="DOCUMENTS_DIRECTORY")
     
     class Config:
@@ -109,7 +112,7 @@ class Settings(BaseSettings):
 class PromptsLoader:
     """Loader for YAML-based prompt configurations."""
     
-    def __init__(self, prompts_file: str = "prompts.yaml"):
+    def __init__(self, prompts_file: str = _DEFAULT_PROMPTS_FILE):
         self.prompts_file = Path(prompts_file)
         self._prompts: Optional[PromptSettings] = None
     
@@ -154,7 +157,7 @@ def get_settings() -> Settings:
     return Settings.get_instance()
 
 
-def load_prompts(prompts_file: str = "prompts.yaml") -> PromptSettings:
+def load_prompts(prompts_file: str = _DEFAULT_PROMPTS_FILE) -> PromptSettings:
     """Convenience function to load prompts from YAML."""
     loader = PromptsLoader(prompts_file)
     return loader.load_prompts()
