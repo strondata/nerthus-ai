@@ -10,8 +10,8 @@ from typing import Optional, Tuple
 import click
 from dotenv import load_dotenv
 
-from config import get_settings
-from session import NerthusSession
+from nerthus_ai.core.config import get_settings
+from nerthus_ai.core.session import NerthusSession
 
 
 # Load environment variables
