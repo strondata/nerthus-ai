@@ -18,8 +18,8 @@ from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain.schema import Document
 
-from config import get_settings
-from extractors import MetadataExtractor
+from nerthus_ai.core.config import get_settings
+from nerthus_ai.rag.extractors import MetadataExtractor
 
 
 class DocumentType(Enum):

@@ -106,11 +106,20 @@ class Settings(BaseSettings):
         cls._instance = None
 
 
+# Absolute path to the package resources directory (prompts, templates, etc.)
+RESOURCES_DIR = Path(__file__).parent.parent / "resources"
+# Absolute path to the Jinja2 templates directory
+TEMPLATES_DIR = RESOURCES_DIR / "templates"
+
+
 class PromptsLoader:
     """Loader for YAML-based prompt configurations."""
-    
+
     def __init__(self, prompts_file: str = "prompts.yaml"):
-        self.prompts_file = Path(prompts_file)
+        path = Path(prompts_file)
+        if not path.is_absolute() and not path.exists():
+            path = RESOURCES_DIR / prompts_file
+        self.prompts_file = path
         self._prompts: Optional[PromptSettings] = None
     
     def load_prompts(self) -> PromptSettings:

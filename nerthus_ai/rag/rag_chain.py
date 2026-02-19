@@ -12,8 +12,8 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import Document
 from langgraph.graph import StateGraph, END
 
-from config import get_settings, PromptsLoader
-from ingest import DocumentIngester
+from nerthus_ai.core.config import get_settings, PromptsLoader
+from nerthus_ai.rag.ingest import DocumentIngester
 
 
 class RAGState(TypedDict):

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from langchain_openai import ChatOpenAI
 
-from config import get_settings, PromptsLoader
+from nerthus_ai.core.config import get_settings, PromptsLoader
 
 
 _JSON_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
