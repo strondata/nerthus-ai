@@ -10,10 +10,10 @@ from datetime import date
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from langchain_openai import ChatOpenAI
 
-from config import get_settings, Settings, PromptsLoader, DEFAULT_COLLECTION_NAME
-from extractors import parse_json_response
-from ingest import DocumentIngester
-from rag_chain import RAGChain
+from nerthus_ai.core.config import get_settings, Settings, PromptsLoader, DEFAULT_COLLECTION_NAME, TEMPLATES_DIR
+from nerthus_ai.rag.extractors import parse_json_response
+from nerthus_ai.rag.ingest import DocumentIngester
+from nerthus_ai.rag.rag_chain import RAGChain
 
 
 class NerthusSession:
@@ -287,7 +287,7 @@ class NerthusSession:
         Returns:
             List of supported file extensions
         """
-        from ingest import DocumentLoaderFactory
+        from nerthus_ai.rag.ingest import DocumentLoaderFactory
         return DocumentLoaderFactory.get_supported_extensions()
 
     def generate_report(
@@ -301,7 +301,7 @@ class NerthusSession:
         collection_name = filter_collection or self.active_collection
         self.set_context(collection_name)
 
-        templates_dir = Path(__file__).parent / "templates"
+        templates_dir = TEMPLATES_DIR
         template_name = f"{report_type}.md"
         if not (templates_dir / template_name).exists():
             raise FileNotFoundError(f"Template not found: {template_name}")
