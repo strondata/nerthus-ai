@@ -5,12 +5,12 @@ Nerthus CLI - Command-line interface for Nerthus AI RAG system.
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 from dotenv import load_dotenv
 
-from config import get_settings, Settings
+from config import get_settings
 from session import NerthusSession
 
 
@@ -35,7 +35,8 @@ def cli(ctx):
 @cli.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--collection', '-c', help='Collection name (optional)')
-def ingest(path: str, collection: Optional[str]):
+@click.option('--tag', '-t', multiple=True, help='Manual tag (repeatable)')
+def ingest(path: str, collection: Optional[str], tag: Tuple[str, ...]):
     """
     Ingest documents from a file or directory.
     
@@ -47,11 +48,9 @@ def ingest(path: str, collection: Optional[str]):
     
     try:
         # Initialize session
-        settings = get_settings()
-        if collection:
-            settings.collection_name = collection
-        
         session = NerthusSession()
+        if collection:
+            session.set_context(collection)
         session.initialize()
         
         # Determine if path is file or directory
@@ -59,7 +58,11 @@ def ingest(path: str, collection: Optional[str]):
         
         if path_obj.is_file():
             click.echo(f"📄 Ingesting file: {path_obj.name}")
-            result = session.ingest_file(str(path))
+            result = session.ingest_file(
+                str(path),
+                collection_name=collection,
+                tags=list(tag),
+            )
             
             if result["success"]:
                 click.echo(f"✅ {result['message']}")
@@ -69,7 +72,11 @@ def ingest(path: str, collection: Optional[str]):
         
         elif path_obj.is_dir():
             click.echo(f"📁 Ingesting directory: {path_obj.name}")
-            result = session.ingest_directory(str(path))
+            result = session.ingest_directory(
+                str(path),
+                collection_name=collection,
+                tags=list(tag),
+            )
             
             if result["success"]:
                 click.echo(f"✅ {result['message']}")
@@ -107,16 +114,14 @@ def query(question: str, collection: Optional[str], model: Optional[str], verbos
     
     try:
         # Initialize session
-        settings = get_settings()
-        if collection:
-            settings.collection_name = collection
-        
         session = NerthusSession(model_name=model)
+        if collection:
+            session.set_context(collection)
         session.initialize()
         
         # Execute query
         with click.progressbar(length=1, label='Querying') as bar:
-            result = session.query(question)
+            result = session.query(question, collection_name=collection)
             bar.update(1)
         
         if result["success"]:
@@ -150,11 +155,9 @@ def interactive(collection: Optional[str]):
     
     try:
         # Initialize session
-        settings = get_settings()
-        if collection:
-            settings.collection_name = collection
-        
         session = NerthusSession()
+        if collection:
+            session.set_context(collection)
         session.initialize()
         
         # Show stats
@@ -201,11 +204,9 @@ def stats(collection: Optional[str]):
     Show session and collection statistics.
     """
     try:
-        settings = get_settings()
-        if collection:
-            settings.collection_name = collection
-        
         session = NerthusSession()
+        if collection:
+            session.set_context(collection)
         session.initialize()
         
         stats = session.get_stats()
@@ -237,11 +238,9 @@ def clear(collection: Optional[str]):
     Clear all documents from the collection.
     """
     try:
-        settings = get_settings()
-        if collection:
-            settings.collection_name = collection
-        
         session = NerthusSession()
+        if collection:
+            session.set_context(collection)
         session.initialize()
         
         result = session.clear_collection()
@@ -274,16 +273,59 @@ def config():
         click.echo(f"\n💾 ChromaDB Settings:")
         click.echo(f"  • Persist Directory: {settings.chroma_persist_directory}")
         click.echo(f"  • Collection: {settings.collection_name}")
+        click.echo("  • Available Collections:")
+        for name, cfg in settings.available_collections.items():
+            click.echo(f"    - {name}: {cfg.description}")
         
         click.echo(f"\n📄 RAG Settings:")
         click.echo(f"  • Chunk Size: {settings.chunk_size}")
         click.echo(f"  • Chunk Overlap: {settings.chunk_overlap}")
         click.echo(f"  • Top K Results: {settings.top_k_results}")
+        click.echo(f"  • Report Context Documents: {settings.report_context_documents}")
         
         click.echo(f"\n📁 Paths:")
         click.echo(f"  • Prompts File: {settings.prompts_file}")
         click.echo(f"  • Documents Directory: {settings.documents_directory}")
     
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('name')
+def context(name: str):
+    """
+    Set active collection context.
+    """
+    try:
+        session = NerthusSession()
+        session.set_context(name)
+        click.echo(f"Contexto definido para: {name}")
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--type', 'report_type', required=True, help='Report type')
+@click.option('--collection', '-c', help='Collection name (optional)')
+def report(report_type: str, collection: Optional[str]):
+    """
+    Generate a report for a collection.
+    """
+    try:
+        session = NerthusSession()
+        if collection:
+            session.set_context(collection)
+        session.initialize()
+
+        result = session.generate_report(report_type, filter_collection=collection)
+        if result["success"]:
+            click.echo(result["content"])
+        else:
+            click.echo("❌ Report generation failed", err=True)
+            sys.exit(1)
     except Exception as e:
         click.echo(f"❌ Error: {str(e)}", err=True)
         sys.exit(1)

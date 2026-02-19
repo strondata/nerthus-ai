@@ -10,11 +10,39 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
+DEFAULT_COLLECTION_NAME = "general"
+
+
 class PromptSettings(BaseModel):
     """Prompt configuration model."""
     system_prompts: Dict[str, str] = Field(default_factory=dict)
     templates: Dict[str, str] = Field(default_factory=dict)
+    metadata_extraction: str = ""
     settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CollectionConfig(BaseModel):
+    """Collection configuration metadata."""
+    name: str
+    description: str
+    strict_mode: bool = False
+
+
+def _default_available_collections() -> Dict[str, CollectionConfig]:
+    return {
+        "legacy_lab_2023": CollectionConfig(
+            name="legacy_lab_2023",
+            description="Histórico de testes Afinko/UFSCar, falhas e aprendizados.",
+        ),
+        "production_scale_2025": CollectionConfig(
+            name="production_scale_2025",
+            description="Parâmetros atuais, Foods Services, Máquinas de Escala.",
+        ),
+        DEFAULT_COLLECTION_NAME: CollectionConfig(
+            name=DEFAULT_COLLECTION_NAME,
+            description="Documentos gerais.",
+        ),
+    }
 
 
 class Settings(BaseSettings):
@@ -36,12 +64,19 @@ class Settings(BaseSettings):
         default="./chroma_db",
         env="CHROMA_PERSIST_DIRECTORY"
     )
-    collection_name: str = Field(default="nerthus_docs", env="COLLECTION_NAME")
+    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME, env="COLLECTION_NAME")
+    available_collections: Dict[str, CollectionConfig] = Field(
+        default_factory=_default_available_collections
+    )
     
     # RAG Configuration
     chunk_size: int = Field(default=1000, env="CHUNK_SIZE")
     chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
     top_k_results: int = Field(default=4, env="TOP_K_RESULTS")
+    report_context_documents: int = Field(
+        default=5,
+        env="REPORT_CONTEXT_DOCUMENTS"
+    )
     
     # Paths
     prompts_file: str = Field(default="prompts.yaml", env="PROMPTS_FILE")
@@ -100,6 +135,12 @@ class PromptsLoader:
         if self._prompts is None:
             self.load_prompts()
         return self._prompts.templates.get(template_name, "")
+
+    def get_metadata_prompt(self) -> str:
+        """Get metadata extraction prompt."""
+        if self._prompts is None:
+            self.load_prompts()
+        return self._prompts.metadata_extraction
     
     def get_setting(self, setting_name: str, default: Any = None) -> Any:
         """Get prompt setting by name."""
