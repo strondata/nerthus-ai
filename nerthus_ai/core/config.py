@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import yaml
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from nerthus_ai.core.constants import (
     DEFAULT_COLLECTION_NAME,
@@ -20,17 +20,6 @@ from nerthus_ai.core.constants import (
     DEFAULT_REPORT_CONTEXT_DOCUMENTS,
     DEFAULT_PROMPTS_FILE,
     DEFAULT_DOCUMENTS_DIRECTORY,
-    ENV_OPENAI_API_KEY,
-    ENV_MODEL_NAME,
-    ENV_TEMPERATURE,
-    ENV_CHROMA_PERSIST_DIRECTORY,
-    ENV_COLLECTION_NAME,
-    ENV_CHUNK_SIZE,
-    ENV_CHUNK_OVERLAP,
-    ENV_TOP_K_RESULTS,
-    ENV_REPORT_CONTEXT_DOCUMENTS,
-    ENV_PROMPTS_FILE,
-    ENV_DOCUMENTS_DIRECTORY,
 )
 
 
@@ -72,44 +61,36 @@ class Settings(BaseSettings):
     Implements Singleton pattern to ensure single instance.
     """
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
     # Singleton instance
     _instance: Optional['Settings'] = None
 
     # LLM Configuration
-    openai_api_key: str = Field(default="", env=ENV_OPENAI_API_KEY)
-    model_name: str = Field(default=DEFAULT_MODEL_NAME, env=ENV_MODEL_NAME)
-    temperature: float = Field(default=DEFAULT_TEMPERATURE, env=ENV_TEMPERATURE)
+    openai_api_key: str = Field(default="")
+    model_name: str = Field(default=DEFAULT_MODEL_NAME)
+    temperature: float = Field(default=DEFAULT_TEMPERATURE)
 
     # ChromaDB Configuration
-    chroma_persist_directory: str = Field(
-        default=DEFAULT_CHROMA_PERSIST_DIRECTORY,
-        env=ENV_CHROMA_PERSIST_DIRECTORY,
-    )
-    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME, env=ENV_COLLECTION_NAME)
+    chroma_persist_directory: str = Field(default=DEFAULT_CHROMA_PERSIST_DIRECTORY)
+    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME)
     available_collections: Dict[str, CollectionConfig] = Field(
         default_factory=_default_available_collections
     )
 
     # RAG Configuration
-    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE, env=ENV_CHUNK_SIZE)
-    chunk_overlap: int = Field(default=DEFAULT_CHUNK_OVERLAP, env=ENV_CHUNK_OVERLAP)
-    top_k_results: int = Field(default=DEFAULT_TOP_K_RESULTS, env=ENV_TOP_K_RESULTS)
-    report_context_documents: int = Field(
-        default=DEFAULT_REPORT_CONTEXT_DOCUMENTS,
-        env=ENV_REPORT_CONTEXT_DOCUMENTS,
-    )
+    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE)
+    chunk_overlap: int = Field(default=DEFAULT_CHUNK_OVERLAP)
+    top_k_results: int = Field(default=DEFAULT_TOP_K_RESULTS)
+    report_context_documents: int = Field(default=DEFAULT_REPORT_CONTEXT_DOCUMENTS)
 
     # Paths
-    prompts_file: str = Field(default=DEFAULT_PROMPTS_FILE, env=ENV_PROMPTS_FILE)
-    documents_directory: str = Field(
-        default=DEFAULT_DOCUMENTS_DIRECTORY,
-        env=ENV_DOCUMENTS_DIRECTORY,
-    )
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    prompts_file: str = Field(default=DEFAULT_PROMPTS_FILE)
+    documents_directory: str = Field(default=DEFAULT_DOCUMENTS_DIRECTORY)
 
     def __new__(cls, *args, **kwargs):
         """Singleton implementation."""
