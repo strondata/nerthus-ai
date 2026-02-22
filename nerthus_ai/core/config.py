@@ -7,10 +7,20 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import yaml
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-DEFAULT_COLLECTION_NAME = "general"
+from nerthus_ai.core.constants import (
+    DEFAULT_COLLECTION_NAME,
+    DEFAULT_MODEL_NAME,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_CHROMA_PERSIST_DIRECTORY,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_CHUNK_OVERLAP,
+    DEFAULT_TOP_K_RESULTS,
+    DEFAULT_REPORT_CONTEXT_DOCUMENTS,
+    DEFAULT_PROMPTS_FILE,
+    DEFAULT_DOCUMENTS_DIRECTORY,
+)
 
 
 class PromptSettings(BaseModel):
@@ -50,56 +60,51 @@ class Settings(BaseSettings):
     Application settings using Pydantic.
     Implements Singleton pattern to ensure single instance.
     """
-    
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
     # Singleton instance
     _instance: Optional['Settings'] = None
-    
+
     # LLM Configuration
-    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
-    model_name: str = Field(default="gpt-3.5-turbo", env="MODEL_NAME")
-    temperature: float = Field(default=0.7, env="TEMPERATURE")
-    
+    openai_api_key: str = Field(default="")
+    model_name: str = Field(default=DEFAULT_MODEL_NAME)
+    temperature: float = Field(default=DEFAULT_TEMPERATURE)
+
     # ChromaDB Configuration
-    chroma_persist_directory: str = Field(
-        default="./chroma_db",
-        env="CHROMA_PERSIST_DIRECTORY"
-    )
-    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME, env="COLLECTION_NAME")
+    chroma_persist_directory: str = Field(default=DEFAULT_CHROMA_PERSIST_DIRECTORY)
+    collection_name: str = Field(default=DEFAULT_COLLECTION_NAME)
     available_collections: Dict[str, CollectionConfig] = Field(
         default_factory=_default_available_collections
     )
-    
+
     # RAG Configuration
-    chunk_size: int = Field(default=1000, env="CHUNK_SIZE")
-    chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
-    top_k_results: int = Field(default=4, env="TOP_K_RESULTS")
-    report_context_documents: int = Field(
-        default=5,
-        env="REPORT_CONTEXT_DOCUMENTS"
-    )
-    
+    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE)
+    chunk_overlap: int = Field(default=DEFAULT_CHUNK_OVERLAP)
+    top_k_results: int = Field(default=DEFAULT_TOP_K_RESULTS)
+    report_context_documents: int = Field(default=DEFAULT_REPORT_CONTEXT_DOCUMENTS)
+
     # Paths
-    prompts_file: str = Field(default="prompts.yaml", env="PROMPTS_FILE")
-    documents_directory: str = Field(default="./documents", env="DOCUMENTS_DIRECTORY")
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-    
+    prompts_file: str = Field(default=DEFAULT_PROMPTS_FILE)
+    documents_directory: str = Field(default=DEFAULT_DOCUMENTS_DIRECTORY)
+
     def __new__(cls, *args, **kwargs):
         """Singleton implementation."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     @classmethod
     def get_instance(cls) -> 'Settings':
         """Get singleton instance of Settings."""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
-    
+
     @classmethod
     def reset_instance(cls):
         """Reset singleton instance (useful for testing)."""
@@ -108,28 +113,28 @@ class Settings(BaseSettings):
 
 class PromptsLoader:
     """Loader for YAML-based prompt configurations."""
-    
-    def __init__(self, prompts_file: str = "prompts.yaml"):
+
+    def __init__(self, prompts_file: str = DEFAULT_PROMPTS_FILE):
         self.prompts_file = Path(prompts_file)
         self._prompts: Optional[PromptSettings] = None
-    
+
     def load_prompts(self) -> PromptSettings:
         """Load prompts from YAML file."""
         if not self.prompts_file.exists():
             raise FileNotFoundError(f"Prompts file not found: {self.prompts_file}")
-        
+
         with open(self.prompts_file, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
-        
+
         self._prompts = PromptSettings(**data)
         return self._prompts
-    
+
     def get_system_prompt(self, prompt_type: str = "default") -> str:
         """Get system prompt by type."""
         if self._prompts is None:
             self.load_prompts()
         return self._prompts.system_prompts.get(prompt_type, "")
-    
+
     def get_template(self, template_name: str) -> str:
         """Get template by name."""
         if self._prompts is None:
@@ -141,7 +146,7 @@ class PromptsLoader:
         if self._prompts is None:
             self.load_prompts()
         return self._prompts.metadata_extraction
-    
+
     def get_setting(self, setting_name: str, default: Any = None) -> Any:
         """Get prompt setting by name."""
         if self._prompts is None:
@@ -154,7 +159,7 @@ def get_settings() -> Settings:
     return Settings.get_instance()
 
 
-def load_prompts(prompts_file: str = "prompts.yaml") -> PromptSettings:
+def load_prompts(prompts_file: str = DEFAULT_PROMPTS_FILE) -> PromptSettings:
     """Convenience function to load prompts from YAML."""
     loader = PromptsLoader(prompts_file)
     return loader.load_prompts()

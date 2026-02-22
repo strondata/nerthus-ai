@@ -14,7 +14,14 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/strondata/nerthus-ai",
-    packages=find_packages(),
+    packages=find_packages(include=["nerthus_ai", "nerthus_ai.*"]),
+    package_data={
+        "nerthus_ai": [
+            "resources/prompts.yaml",
+            "resources/templates/*.md",
+            "ui/templates/*.html",
+        ],
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -30,7 +37,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "nerthus=nerthus_cli:main",
+            "nerthus=nerthus_ai.cli.commands:main",
         ],
     },
 )

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nerthus AI</title>
+  <style>
+    /* -------------------------------------------------------
+       Nerthus AI – custom layout / branding styles.
+       Injected into Streamlit via st.markdown(unsafe_allow_html=True).
+       ------------------------------------------------------- */
+    :root {
+      --nerthus-primary:   #1a3c5e;
+      --nerthus-accent:    #2d9cdb;
+      --nerthus-bg:        #f5f7fa;
+      --nerthus-surface:   #ffffff;
+      --nerthus-text:      #2c3e50;
+      --nerthus-muted:     #7f8c9a;
+      --nerthus-radius:    8px;
+    }
+
+    /* Page background */
+    .stApp {
+      background-color: var(--nerthus-bg);
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      color: var(--nerthus-text);
+    }
+
+    /* Header banner */
+    .nerthus-header {
+      background: linear-gradient(135deg, var(--nerthus-primary), var(--nerthus-accent));
+      color: #ffffff;
+      padding: 1.5rem 2rem;
+      border-radius: var(--nerthus-radius);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .nerthus-header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .nerthus-header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.9rem;
+      opacity: 0.85;
+    }
+
+    /* Card container */
+    .nerthus-card {
+      background: var(--nerthus-surface);
+      border-radius: var(--nerthus-radius);
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      margin-bottom: 1rem;
+    }
+
+    /* Accent divider */
+    .nerthus-divider {
+      height: 3px;
+      background: linear-gradient(90deg, var(--nerthus-accent), transparent);
+      border: none;
+      border-radius: 2px;
+      margin: 1rem 0;
+    }
+
+    /* Footer */
+    .nerthus-footer {
+      text-align: center;
+      color: var(--nerthus-muted);
+      font-size: 0.78rem;
+      padding: 1rem 0;
+      margin-top: 2rem;
+      border-top: 1px solid #e1e8f0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header banner rendered inside Streamlit -->
+  <div class="nerthus-header">
+    <div>
+      <h1>🤖 Nerthus AI</h1>
+      <p>RAG-powered knowledge assistant · LangChain + ChromaDB</p>
+    </div>
+  </div>
+
+  <hr class="nerthus-divider" />
+
+  <div class="nerthus-footer">
+    Nerthus AI &copy; Strondata &mdash; appearance customized via external HTML template
+  </div>
+</body>
+</html>

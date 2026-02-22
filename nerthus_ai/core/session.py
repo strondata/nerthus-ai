@@ -10,10 +10,11 @@ from datetime import date
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from langchain_openai import ChatOpenAI
 
-from config import get_settings, Settings, PromptsLoader, DEFAULT_COLLECTION_NAME
-from extractors import parse_json_response
-from ingest import DocumentIngester
-from rag_chain import RAGChain
+from nerthus_ai.core.config import get_settings, Settings, PromptsLoader
+from nerthus_ai.core.constants import DEFAULT_COLLECTION_NAME
+from nerthus_ai.rag.extractors import parse_json_response
+from nerthus_ai.rag.ingest import DocumentIngester, DocumentLoaderFactory
+from nerthus_ai.rag.chain import RAGChain
 
 
 class NerthusSession:
@@ -21,7 +22,7 @@ class NerthusSession:
     Facade class for Nerthus AI session management.
     Provides a simplified interface to the RAG system.
     """
-    
+
     def __init__(
         self,
         settings: Optional[Settings] = None,
@@ -30,7 +31,7 @@ class NerthusSession:
     ):
         """
         Initialize Nerthus session.
-        
+
         Args:
             settings: Settings instance (uses singleton if not provided)
             model_name: Override model name
@@ -43,20 +44,20 @@ class NerthusSession:
         if default_collection not in self.settings.available_collections:
             default_collection = DEFAULT_COLLECTION_NAME
         self.active_collection = default_collection
-        
+
         # Initialize components
         self._ingester: Optional[DocumentIngester] = None
         self._rag_chain: Optional[RAGChain] = None
         self._prompts_loader: Optional[PromptsLoader] = None
         self._initialized = False
-    
+
     @property
     def ingester(self) -> DocumentIngester:
         """Lazy initialization of document ingester."""
         if self._ingester is None:
             self._ingester = DocumentIngester(collection_name=self.active_collection)
         return self._ingester
-    
+
     @property
     def rag_chain(self) -> RAGChain:
         """Lazy initialization of RAG chain."""
@@ -84,11 +85,11 @@ class NerthusSession:
         self.active_collection = collection_name
         if self._ingester is not None:
             self._ingester.collection_name = collection_name
-    
+
     def initialize(self) -> "NerthusSession":
         """
         Initialize the session (ensure all components are ready).
-        
+
         Returns:
             Self for method chaining
         """
@@ -97,7 +98,7 @@ class NerthusSession:
         _ = self.rag_chain
         self._initialized = True
         return self
-    
+
     def ingest_file(
         self,
         file_path: str,
@@ -106,19 +107,19 @@ class NerthusSession:
     ) -> Dict[str, Any]:
         """
         Ingest a single document file.
-        
+
         Args:
             file_path: Path to the document file
             collection_name: Target collection name
             tags: Manual tags to attach to metadata
-            
+
         Returns:
             Dictionary with ingestion results
         """
         file_path_obj = Path(file_path)
         if not file_path_obj.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
-        
+
         if collection_name:
             self.set_context(collection_name)
 
@@ -127,14 +128,14 @@ class NerthusSession:
             collection_name=self.active_collection,
             tags=tags,
         )
-        
+
         return {
             "success": True,
             "file": str(file_path),
             "chunks": chunks,
             "message": f"Successfully ingested {chunks} chunks from {file_path_obj.name}"
         }
-    
+
     def ingest_directory(
         self,
         directory_path: str,
@@ -143,12 +144,12 @@ class NerthusSession:
     ) -> Dict[str, Any]:
         """
         Ingest all supported documents from a directory.
-        
+
         Args:
             directory_path: Path to directory containing documents
             collection_name: Target collection name
             tags: Manual tags to attach to metadata
-            
+
         Returns:
             Dictionary with ingestion results
         """
@@ -157,7 +158,7 @@ class NerthusSession:
             raise FileNotFoundError(f"Directory not found: {directory_path}")
         if not directory.is_dir():
             raise ValueError(f"Not a directory: {directory_path}")
-        
+
         if collection_name:
             self.set_context(collection_name)
 
@@ -166,7 +167,7 @@ class NerthusSession:
             collection_name=self.active_collection,
             tags=tags,
         )
-        
+
         return {
             "success": True,
             "directory": str(directory_path),
@@ -176,20 +177,20 @@ class NerthusSession:
             "errors": results["errors"],
             "message": f"Ingested {results['total_files']} files ({results['total_chunks']} chunks)"
         }
-    
+
     def query(self, question: str, collection_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Execute a RAG query.
-        
+
         Args:
             question: User question
-            
+
         Returns:
             Dictionary with answer and context
         """
         if not question.strip():
             raise ValueError("Question cannot be empty")
-        
+
         if collection_name:
             self.set_context(collection_name)
 
@@ -197,7 +198,7 @@ class NerthusSession:
             question,
             collection_filter=self.active_collection,
         )
-        
+
         return {
             "success": True,
             "question": question,
@@ -205,20 +206,20 @@ class NerthusSession:
             "context": result["context"],
             "num_sources": len(result["context"])
         }
-    
+
     def stream_query(self, question: str, collection_name: Optional[str] = None):
         """
         Execute a RAG query with streaming.
-        
+
         Args:
             question: User question
-            
+
         Yields:
             State updates during execution
         """
         if not question.strip():
             raise ValueError("Question cannot be empty")
-        
+
         if collection_name:
             self.set_context(collection_name)
 
@@ -226,23 +227,23 @@ class NerthusSession:
             question,
             collection_filter=self.active_collection,
         )
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get session statistics.
-        
+
         Returns:
             Dictionary with session stats
         """
         vectorstore = self.ingester.get_vectorstore(collection_name=self.active_collection)
-        
+
         # Get collection info
         try:
             collection = vectorstore._collection
             count = collection.count()
         except Exception:
             count = 0
-        
+
         return {
             "initialized": self._initialized,
             "model_name": self.model_name,
@@ -251,23 +252,23 @@ class NerthusSession:
             "document_count": count,
             "persist_directory": self.settings.chroma_persist_directory,
         }
-    
+
     def clear_collection(self) -> Dict[str, Any]:
         """
         Clear all documents from the collection.
-        
+
         Returns:
             Dictionary with operation result
         """
         try:
             vectorstore = self.ingester.get_vectorstore(collection_name=self.active_collection)
             collection = vectorstore._collection
-            
+
             # Delete all documents
             all_ids = collection.get()['ids']
             if all_ids:
                 collection.delete(ids=all_ids)
-            
+
             return {
                 "success": True,
                 "message": f"Cleared {len(all_ids)} documents from collection",
@@ -279,15 +280,14 @@ class NerthusSession:
                 "message": f"Error clearing collection: {str(e)}",
                 "documents_deleted": 0
             }
-    
+
     def list_supported_formats(self) -> List[str]:
         """
         Get list of supported document formats.
-        
+
         Returns:
             List of supported file extensions
         """
-        from ingest import DocumentLoaderFactory
         return DocumentLoaderFactory.get_supported_extensions()
 
     def generate_report(
@@ -301,7 +301,7 @@ class NerthusSession:
         collection_name = filter_collection or self.active_collection
         self.set_context(collection_name)
 
-        templates_dir = Path(__file__).parent / "templates"
+        templates_dir = Path(__file__).parent.parent / "resources" / "templates"
         template_name = f"{report_type}.md"
         if not (templates_dir / template_name).exists():
             raise FileNotFoundError(f"Template not found: {template_name}")

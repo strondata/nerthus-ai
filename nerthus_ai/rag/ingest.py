@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from enum import Enum
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
@@ -16,10 +16,10 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
-from langchain.schema import Document
+from langchain_core.documents import Document
 
-from config import get_settings
-from extractors import MetadataExtractor
+from nerthus_ai.core.config import get_settings
+from nerthus_ai.rag.extractors import MetadataExtractor
 
 
 class DocumentType(Enum):
@@ -32,7 +32,7 @@ class DocumentType(Enum):
 
 class DocumentLoaderInterface(ABC):
     """Abstract base class for document loaders."""
-    
+
     @abstractmethod
     def load(self, file_path: str) -> List[Document]:
         """Load documents from file."""
@@ -41,7 +41,7 @@ class DocumentLoaderInterface(ABC):
 
 class PDFDocumentLoader(DocumentLoaderInterface):
     """Loader for PDF documents."""
-    
+
     def load(self, file_path: str) -> List[Document]:
         """Load PDF document."""
         loader = PyPDFLoader(file_path)
@@ -50,7 +50,7 @@ class PDFDocumentLoader(DocumentLoaderInterface):
 
 class TextDocumentLoader(DocumentLoaderInterface):
     """Loader for text documents."""
-    
+
     def load(self, file_path: str) -> List[Document]:
         """Load text document."""
         loader = TextLoader(file_path, encoding='utf-8')
@@ -59,7 +59,7 @@ class TextDocumentLoader(DocumentLoaderInterface):
 
 class DocxDocumentLoader(DocumentLoaderInterface):
     """Loader for DOCX documents."""
-    
+
     def load(self, file_path: str) -> List[Document]:
         """Load DOCX document."""
         loader = Docx2txtLoader(file_path)
@@ -68,7 +68,7 @@ class DocxDocumentLoader(DocumentLoaderInterface):
 
 class MarkdownDocumentLoader(DocumentLoaderInterface):
     """Loader for Markdown documents."""
-    
+
     def load(self, file_path: str) -> List[Document]:
         """Load Markdown document."""
         loader = TextLoader(file_path, encoding='utf-8')
@@ -80,31 +80,31 @@ class DocumentLoaderFactory:
     Factory class for creating document loaders.
     Implements Factory pattern.
     """
-    
+
     _loaders = {
         DocumentType.PDF: PDFDocumentLoader,
         DocumentType.TXT: TextDocumentLoader,
         DocumentType.DOCX: DocxDocumentLoader,
         DocumentType.MD: MarkdownDocumentLoader,
     }
-    
+
     @classmethod
     def create_loader(cls, file_path: str) -> DocumentLoaderInterface:
         """
         Create appropriate document loader based on file extension.
-        
+
         Args:
             file_path: Path to the document file
-            
+
         Returns:
             DocumentLoaderInterface instance
-            
+
         Raises:
             ValueError: If file type is not supported
         """
         path = Path(file_path)
         extension = path.suffix.lower().lstrip('.')
-        
+
         try:
             doc_type = DocumentType(extension)
         except ValueError:
@@ -112,13 +112,13 @@ class DocumentLoaderFactory:
                 f"Unsupported file type: {extension}. "
                 f"Supported types: {', '.join([t.value for t in DocumentType])}"
             )
-        
+
         loader_class = cls._loaders.get(doc_type)
         if loader_class is None:
             raise ValueError(f"No loader available for document type: {doc_type}")
-        
+
         return loader_class()
-    
+
     @classmethod
     def get_supported_extensions(cls) -> List[str]:
         """Get list of supported file extensions."""
@@ -160,7 +160,7 @@ class ChromaDocumentStore:
 
 class DocumentIngester:
     """Main class for document ingestion into ChromaDB."""
-    
+
     def __init__(
         self,
         persist_directory: Optional[str] = None,
@@ -170,7 +170,7 @@ class DocumentIngester:
     ):
         """
         Initialize document ingester.
-        
+
         Args:
             persist_directory: Directory for ChromaDB persistence
             collection_name: Name of the ChromaDB collection
@@ -178,18 +178,18 @@ class DocumentIngester:
             chunk_overlap: Overlap between chunks
         """
         self.settings = get_settings()
-        
+
         self.persist_directory = persist_directory or self.settings.chroma_persist_directory
         self.collection_name = collection_name or self.settings.collection_name
         self.chunk_size = chunk_size or self.settings.chunk_size
         self.chunk_overlap = chunk_overlap or self.settings.chunk_overlap
-        
+
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
             length_function=len,
         )
-        
+
         self.embeddings = OpenAIEmbeddings()
         self.store = ChromaDocumentStore(
             persist_directory=self.persist_directory,
@@ -202,7 +202,7 @@ class DocumentIngester:
         if resolved not in self.settings.available_collections:
             raise ValueError(f"Invalid collection name: {resolved}")
         return resolved
-    
+
     def ingest_file(
         self,
         file_path: str,
@@ -211,12 +211,12 @@ class DocumentIngester:
     ) -> int:
         """
         Ingest a single document file.
-        
+
         Args:
             file_path: Path to the document file
             collection_name: Target collection name
             tags: Manual tags to attach to metadata
-            
+
         Returns:
             Number of chunks ingested
         """
@@ -225,7 +225,7 @@ class DocumentIngester:
 
         # Create loader using factory
         loader = DocumentLoaderFactory.create_loader(file_path)
-        
+
         # Load document
         documents = loader.load(file_path)
 
@@ -247,20 +247,20 @@ class DocumentIngester:
             "collection": collection_name,
             "source": file_path,
         }
-        
+
         # Split into chunks
         chunks = self.text_splitter.split_documents(documents)
         for chunk in chunks:
             chunk.metadata = {**chunk.metadata, **full_metadata}
-        
+
         # Add to vector store
         self.store.add_documents(
             chunks=chunks,
             collection_name=collection_name,
         )
-        
+
         return len(chunks)
-    
+
     def ingest_directory(
         self,
         directory_path: str,
@@ -269,19 +269,19 @@ class DocumentIngester:
     ) -> dict:
         """
         Ingest all supported documents from a directory.
-        
+
         Args:
             directory_path: Path to directory containing documents
             collection_name: Target collection name
             tags: Manual tags to attach to metadata
-            
+
         Returns:
             Dictionary with ingestion results
         """
         directory = Path(directory_path)
         if not directory.is_dir():
             raise ValueError(f"Not a directory: {directory_path}")
-        
+
         supported_extensions = DocumentLoaderFactory.get_supported_extensions()
         results = {
             "total_files": 0,
@@ -289,7 +289,7 @@ class DocumentIngester:
             "files_processed": [],
             "errors": []
         }
-        
+
         for ext in supported_extensions:
             for file_path in directory.rglob(f"*.{ext}"):
                 try:
@@ -309,9 +309,9 @@ class DocumentIngester:
                         "file": str(file_path),
                         "error": str(e)
                     })
-        
+
         return results
-    
+
     def get_vectorstore(self, collection_name: Optional[str] = None) -> Chroma:
         """Get the ChromaDB vector store."""
         resolved = self._resolve_collection(collection_name)
